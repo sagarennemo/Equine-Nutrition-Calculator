@@ -1,0 +1,8 @@
+mineral,maintenance, working_horses, max_tolerance
+"iron", 45, 90, 3000
+"manganese", 45, 90, 
+"copper", 11, 22, 2400
+"zink", 45, 90, 1500
+"cobalt", 0.1, 0.2, 30
+"iodine", 0.35, 0.35, 10
+"selenium", 0.2, 0.2, 5
