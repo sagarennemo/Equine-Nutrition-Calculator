@@ -1,10 +1,10 @@
 import json
 import csv
+import pandas as pd
 
 def csv_reader(file_path):
-    with open(file_path, "r", encoding="utf-8", newline="") as file:
-        reader = csv.DictReader(file)
-        return reader
+    reader = pd.read_csv(file_path)
+    return reader
     
 def json_reader(file_path):
    with open(file_path, "r", encoding="utf-8" ) as file:

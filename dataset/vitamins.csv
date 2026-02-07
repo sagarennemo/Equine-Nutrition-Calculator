@@ -1,7 +1,7 @@
-vitamin_unit, maintenance_and_working, very_hard_working, max_tolerance
-"A IE", 3500, 7500, 48000
-"D IE", 450, 750, 6600
-"E mg", 75, 200, 3000
-"B1 mg", 7, 9, 9000
-"B2 mg", 4, 6, 
-"biotin mg", 0.1, 0.15 
+vitamin,unit,maintenance,very_hard_working,max_tolerance
+"A","IE",3500,7500,48000
+"D","IE",450,750,6600
+"E","mg",75, 200,3000
+"B1","mg",7,9,9000
+"B2","mg",4,6, 
+"biotin","mg",0.1,0.15 

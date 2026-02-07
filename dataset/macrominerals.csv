@@ -1,5 +1,5 @@
-mineral, maintenance, lt30, 30_50, 50_75, 75_130
-"calcium", 4, 6, 7, 8, 8
-"phosphorus", 2.8, 3.6, 4.2, 5.8, 5.8
-"magnesium", 1.5, 1.9, 2.3, 3, 3
-"salt", 5.1, 7, 9, 11, 17
+mineral,maintenance,lt30,30_50,50_75,75_130,unit
+"calcium",4,6,7,8,8,"grams"
+"phosphorus",2.8,3.6,4.2,5.8,5.8,"grams"
+"magnesium",1.5,1.9,2.3,3,3,"grams"
+"salt",5.1,7,9,11,17,"grams"
