@@ -122,10 +122,8 @@ The calculator uses scientifically-based formulas to determine nutritional requi
 Future enhancements planned:
 - Hay and feed analysis integration
 - Ration formulation and balancing
-- Comparison of multiple feeding plans
 - Export results to PDF/CSV
 - Web-based interface
-- Multi-horse management
 
 ## Data Sources
 
