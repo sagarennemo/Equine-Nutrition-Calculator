@@ -1,9 +1,9 @@
 import re
 import questionary
-from questionary import Choice
+import calculations as calc
 import models 
 from file_reader import load_context
-from calculations import *
+from questionary import Choice
 from rich.console import Console
 from rich.table import Table
 
@@ -12,7 +12,7 @@ def build_profile(ctx) -> models.HorseProfile:
     keeper_type = keeper_info()
     is_stallion = gender_info()
 
-    maintenance = energy_maintenance(ctx, ideal_weight, keeper_type, is_stallion)
+    maintenance = calc.energy_maintenance(ctx, ideal_weight, keeper_type, is_stallion)
     
     workload = additional_energy_needs(ctx, current_weight, maintenance)
 
@@ -134,8 +134,8 @@ def main():
     ctx = load_context()
     profile = build_profile(ctx)
 
-    epdm = calc_energy_protein_dm(ctx, profile)
-    mn = calc_micro_nutrients(ctx, profile)
+    epdm = calc.calc_energy_protein_dm(ctx, profile)
+    mn = calc.calc_micro_nutrients(ctx, profile)
     nutrients_table(epdm, mn)
 
 if __name__ == "__main__":

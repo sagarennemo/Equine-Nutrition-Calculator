@@ -26,7 +26,7 @@ def calc_energy_protein_dm(ctx, profile):
     calc_dry_mass = data["dry_mass"]["keeper_type"][keeper_type] * weight_factor_dm
     dry_mass = round(calc_dry_mass)
 
-    maintenance = energy_maintainence(ctx, ideal_weight, keeper_type, is_stallion)
+    maintenance = energy_maintenance(ctx, ideal_weight, keeper_type, is_stallion)
 
     additional_energy = int(maintenance * (workload / 100))
     total_energy_need = maintenance + additional_energy
