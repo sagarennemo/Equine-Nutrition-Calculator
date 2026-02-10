@@ -112,7 +112,7 @@ def nutrients_table(epdm, mn):
     table.add_column("Target Intake", justify="center")
     table.add_column("Unit", justify="center")
 
-    table.add_row("Dry Mass", str(epdm.dry_mass), "kg/day")
+    table.add_row("Dry Matter", str(epdm.dry_matter), "kg/day")
     table.add_row("Metabolizable Energy", str(epdm.total_mj), "MJ/day")
     table.add_row("Digestible Crude Protein", str(epdm.total_dcp_g), "grams/day")
 

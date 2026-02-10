@@ -20,7 +20,7 @@
     "description": "6 grams of digestible crude protein per MJ"
     
 },
-"dry_mass": {
+"dry_matter": {
         "keeper_type": {
         "easy_keeper": 1.5,
         "normal_keeper": 1.7,

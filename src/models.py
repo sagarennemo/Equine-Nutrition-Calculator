@@ -22,7 +22,7 @@ class EnergyProteinReq:
     additional_mj: int
     total_mj: int
     total_dcp_g: int
-    dry_mass: int
+    dry_matter: int
 
 @dataclass
 class MicroNutrients:
