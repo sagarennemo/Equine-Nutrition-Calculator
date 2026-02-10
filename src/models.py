@@ -22,12 +22,16 @@ class EnergyProteinReq:
     additional_mj: int
     total_mj: int
     total_dcp_g: int
+    dry_mass: int
 
 @dataclass
 class MicroNutrients:
     vitamins: dict[str, float]
+    micro_mineral_units: dict[str]
     microminerals: dict[str, float]
+    macro_mineral_units: dict[str]
     macrominerals: dict[str, float]
+
 
 
 

@@ -1,59 +1,59 @@
 import re
 import questionary
 from questionary import Choice
-from models import *
-from pathlib import Path
-from file_reader import *
+import models 
+from file_reader import load_context
+from calculations import *
+from rich.console import Console
+from rich.table import Table
 
-# To avoid file path issues on different devices
-BASE_DIR = Path(__file__).parent.parent
-VITAMINS_FILE_PATH = BASE_DIR / "dataset" / "vitamins.csv"
-MACRO_FILE_PATH = BASE_DIR / "dataset" / "macrominerals.csv"
-MICRO_FILE_PATH = BASE_DIR / "dataset" / "microminerals.csv"
-ENERGY_PROTEIN_FILE_PATH = BASE_DIR / "dataset" / "energy_protein.json"
-
-
-def load_context() -> DataContext:
-    return DataContext(energy_protein=json_reader(ENERGY_PROTEIN_FILE_PATH),
-                       macro=csv_reader(MACRO_FILE_PATH),
-                       micro=csv_reader(MICRO_FILE_PATH),
-                       vitamins=csv_reader(VITAMINS_FILE_PATH))
-
-
-def build_profile(ctx) -> HorseProfile:
+def build_profile(ctx) -> models.HorseProfile:
     ideal_weight, current_weight = weight_info()
     keeper_type = keeper_info()
     is_stallion = gender_info()
-    workload = additional_energy_needs(ctx)
 
-    return HorseProfile(
+    maintenance = energy_maintenance(ctx, ideal_weight, keeper_type, is_stallion)
+    
+    workload = additional_energy_needs(ctx, current_weight, maintenance)
+
+    return models.HorseProfile(
         current_weight=current_weight,
         ideal_weight=ideal_weight,
         keeper_type=keeper_type,
         is_stallion=is_stallion,
         workload_percent=workload)
 
-
 def weight_info():
-    try:
-        current_weight = int(input("Input the horses weight in kg: "))
-        ideal_weight = questionary.confirm("Is the horse ideal weight?").ask()
 
-        if not ideal_weight:
-            ideal_weight = int(input("What is the horses ideal weight?"))
-            print("The horses energy needs will be calculated after the ideal weight")
-            return ideal_weight, current_weight
-        
-        else:
-            ideal_weight = current_weight
-        return ideal_weight, current_weight
+    current_weight = input("Input the horse's weight in kg: ").strip()
 
-    except ValueError:
-        print("Weight needs to be a number.")
+    while not current_weight.isdigit() or int(current_weight) <= 0:
+        print("Weight must be a positive integer.")
+        current_weight = input("Input the horse's weight in kg: ").strip()
+
+    current_weight = int(current_weight)
+
+    is_ideal = questionary.confirm("Is the horse at ideal weight?").ask()
+
+    if not is_ideal:
+        ideal_weight = input("What is the horse's ideal weight in kg? ").strip()
+
+        while not ideal_weight.isdigit() or int(ideal_weight) <= 0:
+            print("Ideal weight must be a positive integer.")
+            ideal_weight = input("What is the horse's ideal weight in kg? ").strip()
+
+        ideal_weight = int(ideal_weight)
+        print("Energy requirements will be calculated based on ideal weight.")
+
+    else:
+        ideal_weight = current_weight
+
+    return ideal_weight, current_weight
+
 
 
 def keeper_info():
-    ask_keeper_type = questionary.rawselect(
+    ask_keeper_type = questionary.select(
         "How does the horse maintain its weight?",
         choices = ["Gains Weight Easily (easy keeper)", 
                     "Maintains Weight Normally (normal keeper)", 
@@ -67,7 +67,7 @@ def keeper_info():
 def gender_info():
     return questionary.confirm("Is the horse a stallion?").ask()
 
-def additional_energy_needs(ctx):
+def additional_energy_needs(ctx, current_weight, maintenance):
     data = ctx.energy_protein
 
     choices = [
@@ -76,16 +76,26 @@ def additional_energy_needs(ctx):
         Choice("Moderate (50%)", value="moderate"),
         Choice("Hard (75%)", value="hard"),
         Choice("Very Hard (120%)", value="very_hard"),
-        Choice("Custom", value="custom")]
+        Choice("Advanced", value="advanced")]
     
     workload = questionary.select(
         "Select workload level of the horse (energy requirement increase)", choices=choices).ask()
 
-    if workload == "custom":
+    if workload == "advanced":
         try:
-            workload_percent = int(input("Enter estimated energy increase (%) above maintenance: "))
+            walk_miutes = int(input("Average minutes of walking/day (enter 0 if none): "))
+            trot_canter = int(input("Average minutes of trot/canter/gallop per day: "))
+            days = int(input("How many days a week? "))
+
+            walk_miutes = (walk_miutes * days) / 7
+            trot_canter = (trot_canter * days) / 7
+
+            additional_mj = (current_weight / 100) * ((0.2 * (walk_miutes / 10)) + (1.3 * (trot_canter / 10)))
+
+            workload_percent = round((additional_mj/maintenance) * 100) 
+
         except ValueError:
-            print("Custom Workload must be a numeric value")
+            print("Must be a numeric values")
     
     elif workload == "maintenance":
         workload_percent = 0
@@ -95,70 +105,38 @@ def additional_energy_needs(ctx):
 
     return workload_percent
     
+def nutrients_table(epdm, mn):
+    table = Table(title="Horse Nutrient Requirements")
 
-def calc_energy_protein(ctx, profile):
-    ideal_weight = profile.ideal_weight
-    is_stallion = profile.is_stallion
-    workload = profile.workload_percent
-    keeper_type = profile.keeper_type
+    table.add_column("Nutrient", justify="center")
+    table.add_column("Target Intake", justify="center")
+    table.add_column("Unit", justify="center")
+
+    table.add_row("Dry Mass", str(epdm.dry_mass), "kg/day")
+    table.add_row("Metabolizable Energy", str(epdm.total_mj), "MJ/day")
+    table.add_row("Digestible Crude Protein", str(epdm.total_dcp_g), "grams/day")
+
+    for mineral in mn.macrominerals:
+        value = mn.macrominerals[mineral]         
+        unit = mn.macro_mineral_units[mineral]
+        table.add_row(mineral.capitalize(), str(int(value)), unit)
     
-    data = ctx.energy_protein
-    
-    calc_ideal = ideal_weight ** 0.75
+    for mineral in mn.microminerals:
+        value = mn.microminerals[mineral]         
+        unit = mn.micro_mineral_units[mineral]
+        table.add_row(mineral.capitalize(), str(int(value)), unit)
 
-    calc_maintenance = round(data["energy_maintenance"]["keeper_type"][keeper_type] * calc_ideal)
-    maintenance = round(calc_maintenance)
+    console = Console()
+    console.print(table)
 
-    if is_stallion:
-       maintenance = round(calc_maintenance * 1.1)
-
-    additional_energy = int(maintenance * (workload / 100))
-    total_energy_need = maintenance + additional_energy
-    protein_need = total_energy_need * data["protein"]["grams"]
-
-    print(f"additional: {additional_energy}, maintenance: {maintenance}, total: {total_energy_need}, protein: {protein_need}")
-    
-    return EnergyProteinReq(maintenance_mj=maintenance,
-                            additional_mj=additional_energy,
-                            total_mj=total_energy_need,
-                            total_dcp_g=protein_need) 
-
-def workload_to_column(wl):
-    if wl == 0:
-        return "maintenance", "maintenance", "maintenance"
-    elif wl < 30:
-        return "lt30", "working_horses", "maintenance"
-    elif wl <= 50:
-        return "30-50", "working_horses", "maintenance"
-    elif wl <= 75:
-        return "50-75", "working_horses", "maintenance"
-    elif wl <= 130:
-        return "75-130", "working_horses", "very_hard_working"
-
-def calc_micro_nutrients(ctx, profile):
-    wl = profile.workload_percent
-    weight_factor = profile.ideal_weight / 100
-    macro_col, micro_col, vitamin_col = workload_to_column(wl)
-
-    macro_df = ctx.macro.set_index("mineral")
-    micro_df = ctx.micro.set_index("mineral")
-    vitamin_df = ctx.vitamins.set_index("vitamin")
-
-
-    vitamins = (vitamin_df[vitamin_col]* weight_factor).to_dict()
-    macro_minerals = (macro_df[macro_col]* weight_factor).to_dict()
-    micro_minerals = (micro_df[micro_col]* weight_factor).to_dict()
-
-    return MicroNutrients(vitamins=vitamins,
-                          microminerals=micro_minerals,
-                          macrominerals=macro_minerals)
 
 def main():
     ctx = load_context()
     profile = build_profile(ctx)
 
-    calc_energy_protein(ctx, profile)
-    calc_micro_nutrients(ctx, profile)
+    epdm = calc_energy_protein_dm(ctx, profile)
+    mn = calc_micro_nutrients(ctx, profile)
+    nutrients_table(epdm, mn)
 
 if __name__ == "__main__":
     main()
