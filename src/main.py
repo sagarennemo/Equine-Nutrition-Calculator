@@ -119,12 +119,16 @@ def nutrients_table(epdm, mn):
     for mineral in mn.macrominerals:
         value = mn.macrominerals[mineral]         
         unit = mn.macro_mineral_units[mineral]
-        table.add_row(mineral.capitalize(), str(int(value)), unit)
+        if value - int(value) <= 0:
+            value = int(value)
+        table.add_row(mineral.capitalize(), str(value), unit)
     
     for mineral in mn.microminerals:
         value = mn.microminerals[mineral]         
         unit = mn.micro_mineral_units[mineral]
-        table.add_row(mineral.capitalize(), str(int(value)), unit)
+        if value - int(value) <= 0:
+            value = int(value)
+        table.add_row(mineral.capitalize(), str(value), unit)
 
     console = Console()
     console.print(table)

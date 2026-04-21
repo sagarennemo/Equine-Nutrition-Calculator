@@ -11,7 +11,6 @@ A Python-based equine nutrition calculator that estimates daily energy and nutri
   - Workload level (maintenance to very hard work)
 
 - **Advanced Workload Calculator**: Option to calculate custom energy requirements based on specific exercise routines (minutes of walking, trotting, cantering per week)
-  
 - **Comprehensive Nutrient Analysis**: Estimates requirements for:
   - Metabolizable Energy (MJ/day)
   - Digestible Crude Protein (DCP)
@@ -32,12 +31,14 @@ A Python-based equine nutrition calculator that estimates daily energy and nutri
 ## Installation
 
 1. Clone the repository:
+
 ```bash
 git clone https://github.com/sagarennemo/Equine-Nutrition-Calculator.git
 cd Equine-Nutrition-Calculator
 ```
 
 2. Install required dependencies:
+
 ```bash
 pip install -r requirements.txt
 ```
@@ -50,6 +51,7 @@ Run the calculator from the `src` directory:
 cd src
 python main.py
 ```
+
 The program will guide you through a series of questions:
 
 1. **Weight Information**: Enter the horse's current weight and ideal weight
@@ -60,23 +62,23 @@ The program will guide you through a series of questions:
 ### Example Output
 
 ```
-              Horse Nutrient Requirements               
+              Horse Nutrient Requirements
 ┏━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━┳━━━━━━━━━━━┓
 ┃         Nutrient         ┃ Target Intake ┃   Unit    ┃
 ┡━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━╇━━━━━━━━━━━┩
 │        Dry Matter        │       8       │  kg/day   │
-│   Metabolizable Energy   │      56       │  MJ/day   │
-│ Digestible Crude Protein │      336      │ grams/day │
-│         Calcium          │      20       │ grams/day │
-│        Phosphorus        │      14       │ grams/day │
-│        Magnesium         │       7       │ grams/day │
-│           Salt           │      25       │ grams/day │
-│           Iron           │      225      │  mg/day   │
-│        Manganese         │      225      │  mg/day   │
-│          Copper          │      55       │  mg/day   │
-│           Zinc           │      225      │  mg/day   │
-│          Cobalt          │       0       │  mg/day   │
-│          Iodine          │       1       │  mg/day   │
+│   Metabolizable Energy   │      69       │  MJ/day   │
+│ Digestible Crude Protein │      414      │ grams/day │
+│         Calcium          │      30       │ grams/day │
+│        Phosphorus        │      18       │ grams/day │
+│        Magnesium         │      9.5      │ grams/day │
+│           Salt           │      35       │ grams/day │
+│           Iron           │      450      │  mg/day   │
+│        Manganese         │      450      │  mg/day   │
+│          Copper          │      110      │  mg/day   │
+│           Zinc           │      450      │  mg/day   │
+│          Cobalt          │       1       │  mg/day   │
+│          Iodine          │     1.75      │  mg/day   │
 │         Selenium         │       1       │  mg/day   │
 └──────────────────────────┴───────────────┴───────────┘
 ```
@@ -109,17 +111,18 @@ The calculator uses scientifically-based formulas to determine nutritional requi
 
 ## Workload Levels
 
-| Level | Energy Increase | Typical Activities |
-|-------|-----------------|-------------------|
-| Maintenance | 0% | Pasture, no work |
-| Light Work | 25% | Regular riding |
-| Moderate Work | 50% | School horses, low level competition |
-| Hard Work | 75% | Intensive training and competition |
-| Very Hard Work | 120% | Elite level competition, race horses |
+| Level          | Energy Increase | Typical Activities                   |
+| -------------- | --------------- | ------------------------------------ |
+| Maintenance    | 0%              | Pasture, no work                     |
+| Light Work     | 25%             | Regular riding                       |
+| Moderate Work  | 50%             | School horses, low level competition |
+| Hard Work      | 75%             | Intensive training and competition   |
+| Very Hard Work | 120%            | Elite level competition, race horses |
 
 ## Roadmap
 
 Future enhancements planned:
+
 - Hay and feed analysis integration
 - Ration formulation and balancing
 - Export results to PDF/CSV
@@ -130,6 +133,7 @@ Future enhancements planned:
 Nutritional requirements are based on **"Utfodringsrekommendationer för häst"** (Feeding Recommendations for Horses) published by the Swedish University of Agricultural Sciences (SLU - Sveriges lantbruksuniversitet). The reference data is stored in the `dataset/` directory and follows established equine nutrition research standards.
 
 ### References
+
 Jansson, A. (2013), Utfodringsrekommendationer för häst, Sveriges lantbruksuniversitet, accessed 5 Feb 2026, https://pub.epsilon.slu.se/37156/1/jansson-a-20250516.pdf
 
 ## Contributing
@@ -143,6 +147,7 @@ This project is open source and available under the [MIT License](LICENSE).
 ## Author
 
 **sagarennemo**
+
 - GitHub: [@sagarennemo](https://github.com/sagarennemo)
 
 ## Disclaimer
@@ -153,4 +158,4 @@ The nutritional data is based on Swedish research and standards, which may diffe
 
 ---
 
-*Developed with 🐴 for better equine nutrition*
+_Developed with 🐴 for better equine nutrition_

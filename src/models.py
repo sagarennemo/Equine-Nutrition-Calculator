@@ -31,7 +31,3 @@ class MicroNutrients:
     microminerals: dict[str, float]
     macro_mineral_units: dict[str]
     macrominerals: dict[str, float]
-
-
-
-

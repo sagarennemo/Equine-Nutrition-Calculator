@@ -44,11 +44,11 @@ def workload_to_column(wl):
     elif wl < 30:
         return "lt30", "working_horses", "maintenance"
     elif wl <= 50:
-        return "30-50", "working_horses", "maintenance"
+        return "30_50", "working_horses", "maintenance"
     elif wl <= 75:
-        return "50-75", "working_horses", "maintenance"
+        return "50_75", "working_horses", "maintenance"
     elif wl <= 130:
-        return "75-130", "working_horses", "very_hard_working"
+        return "75_130", "working_horses", "very_hard_working"
 
 def calc_micro_nutrients(ctx, profile):
     wl = profile.workload_percent
