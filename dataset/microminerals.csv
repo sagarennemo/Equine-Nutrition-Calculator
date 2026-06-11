@@ -3,6 +3,4 @@ mineral,maintenance,working_horses,max_tolerance,unit
 "manganese",45,90,3000,"mg/day"
 "copper",11,22,2400,"mg/day"
 "zinc",45,90,1500,"mg/day"
-"cobalt",0.1,0.2,30,"mg/day"
-"iodine",0.35,0.35,10,"mg/day"
 "selenium",0.2,0.2,5,"mg/day"
