@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import pandas as pd
 
@@ -44,7 +44,7 @@ class MicroNutrients:
 class HayAnalysis:
     dry_matter_pct: int
     energy_mj_per_kg_dm: float
-    digestible_protein_per_kg_dm: int
+    digestible_protein_g_per_kg_dm: int
     calcium_g_per_kg_dm: float
     phosphorus_g_per_kg_dm: float
     magnesium_g_per_kg_dm: float
@@ -52,42 +52,27 @@ class HayAnalysis:
     zinc_mg_per_kg_dm: float
     manganese_mg_per_kg_dm: float
     iron_mg_per_kg_dm: float
-    sodium_g_per_kg_dm: float
-
-
-@dataclass
-class ConcentrateItem:
-    name: str
-    category: str
-    no_grain: bool
-    energy_mj_per_kg_dm: float
-    digestible_protein_g_per_kg_dm: float
-    calcium_g_per_kg_dm: float
-    phosphorus_g_per_kg_dm: float
-    magnesium_g_per_kg_dm: float
-    sodium_g_per_kg_dm: float
-    copper_mg_per_kg_dm: float
-    zinc_mg_per_kg_dm: float
-    manganese_mg_per_kg_dm: float
-    iron_mg_per_kg_dm: float
-    selenium_mg_per_kg_dm: float
-    starch_g_per_kg_dm: float
-    max_g_per_100kg_bw_per_meal: float
-    notes: str
+    salt_g_per_kg_dm: float
+    selenium_mg_per_kg_dm: float = 0
 
 
 @dataclass
 class FeedAmount:
-    feed: ConcentrateItem
+    feed: str
     amount_kg: float
+    contribution: dict[str, float]
+
+
+@dataclass
+class NutrientCoverage:
+    required: float
+    covered: float
 
 
 @dataclass
 class RationResult:
     hay_kg: float
-    concentrates: list[FeedAmount]
-    total_energy_mj: float
-    total_protein_g: float
-    total_dm_kg: float
-    mineral_shortfalls: list[str]
-    warnings: list[str]
+    hay_coverage: dict[str, float] = field(default_factory=list)
+    concentrates: list[FeedAmount] = field(default_factory=list)
+    nutrient_coverage: dict[str, NutrientCoverage] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)

@@ -13,7 +13,7 @@ from optimizer import optimize_ration
 hay_analysis = models.HayAnalysis(
     dry_matter_pct=66,
     energy_mj_per_kg_dm=9.2,
-    digestible_protein_per_kg_dm=60,
+    digestible_protein_g_per_kg_dm=60,
     calcium_g_per_kg_dm=2.1,
     phosphorus_g_per_kg_dm=1.6,
     magnesium_g_per_kg_dm=1.0,
@@ -21,7 +21,7 @@ hay_analysis = models.HayAnalysis(
     zinc_mg_per_kg_dm=22.7,
     manganese_mg_per_kg_dm=108.2,
     iron_mg_per_kg_dm=81.2,
-    sodium_g_per_kg_dm=0.2,
+    salt_g_per_kg_dm=0.5,
 )
 
 
@@ -183,6 +183,7 @@ def main():
     epdm = calc.calc_energy_protein_dm(ctx, profile)
     mn = calc.calc_micro_nutrients(ctx, profile)
     nutrients_table(epdm, mn)
+    print(optimize_ration(ctx, profile, hay_analysis,epdm, mn))
 
 
 if __name__ == "__main__":
