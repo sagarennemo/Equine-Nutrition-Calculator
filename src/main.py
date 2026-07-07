@@ -183,7 +183,7 @@ def main():
     epdm = calc.calc_energy_protein_dm(ctx, profile)
     mn = calc.calc_micro_nutrients(ctx, profile)
     nutrients_table(epdm, mn)
-    print(optimize_ration(ctx, profile, hay_analysis,epdm, mn))
+    print(optimize_ration(ctx, profile, hay_analysis, epdm, mn))
 
 
 if __name__ == "__main__":
