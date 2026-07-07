@@ -67,6 +67,7 @@ class FeedAmount:
 class NutrientCoverage:
     required: float
     covered: float
+    from_hay: float
 
 
 @dataclass

@@ -87,10 +87,17 @@ def ration_coverage(
 			total_coverage[nutrient] += concentrate_contribution[feed][nutrient]
 	
 	for nutrient in horse_needs:
-		nutrient_needs_coverage[nutrient] = models.NutrientCoverage(required=horse_needs[nutrient], covered=total_coverage[nutrient])
+		nutrient_needs_coverage[nutrient] = models.NutrientCoverage(required=horse_needs[nutrient], covered=total_coverage[nutrient], from_hay=hay_nutrients[nutrient])
 
 	return nutrient_needs_coverage
-				
+
+def generate_warnings(profile: models.HorseProfile,
+					  nutrient_coverage: dict[str,models.NutrientCoverage]
+					  ) -> list[str]:
+	
+	keeper_type = profile.keeper_type
+
+
 
 def optimize_ration(
 	ctx,
@@ -98,7 +105,7 @@ def optimize_ration(
 	hay: models.HayAnalysis,
 	epdm: models.EnergyProteinReq,
 	mn: models.MicroNutrients,
-) -> models.RationResult | str:
+) -> models.RationResult:
 
 	df = ctx.concentrates
 	lp_prob = LpProblem("Horse_Ration", LpMinimize)
@@ -197,8 +204,8 @@ def optimize_ration(
 					feed=f, amount_kg=amount, contribution=concentrate_contribution[f]
 				)
 			)
-	total_coverage = ration_coverage(epdm, mn, base_contribution, concentrate_contribution)
+	nutrient_coverage = ration_coverage(epdm, mn, base_contribution, concentrate_contribution)
 
 	ration = models.RationResult(
-	    hay_kg=hay_kg, hay_coverage=base_contribution, concentrates=concentrates, nutrient_coverage=total_coverage)
+	    hay_kg=hay_kg, hay_coverage=base_contribution, concentrates=concentrates, nutrient_coverage=nutrient_coverage)
 	return hay_kg, concentrates
