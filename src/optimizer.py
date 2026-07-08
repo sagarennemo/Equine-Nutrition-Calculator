@@ -20,6 +20,12 @@ ENERGY_SURPLUS = {
 # surplus should be reduced regardless.
 PROTEIN_SURPLUS_MAX = 1.6
 
+ENERGY_MAX = {
+    "easy_keeper": 1.20,    # 10 pts above the 1.10 warning threshold
+    "normal_keeper": 1.25,  # 10 pts above the 1.15 warning threshold
+    "hard_keeper": 1.30,    # 10 pts above the 1.20 warning threshold
+}
+
 
 def round_to_nearest(value: float, step: float) -> float | int:
     rounded = round(value / step) * step
@@ -116,9 +122,16 @@ def generate_warnings(
     profile: models.HorseProfile,
     nutrient_coverage: dict[str, models.NutrientCoverage],
     mn: models.MicroNutrients,
+    concentrates: list[str]
 ) -> list[str]:
-
+    
     warnings = []
+
+    if concentrates:
+        warnings.append(
+            f"This ration assumes concentrate is split across {profile.meals} meal(s) per day. "
+            "Giving it all at once increases the risk of colic or hindgut disturbances."
+        )
 
     protein = nutrient_coverage["digestible_protein_g_per_kg_dm"]
 
@@ -148,7 +161,7 @@ def generate_warnings(
         )
 
     for nutrient in microminerals:
-        mineral = nutrient_coverage[nutrient]
+        mineral = nutrient_coverage[nutrient + "_mg_per_kg_dm"]
         if mineral.covered < mineral.required:
             warnings.append(
                 f"The ration does not meet the requirement for {nutrient.split('_')[0].capitalize()}. Supplement with a complete mineral feed to cover this. Note that a mineral feed also contributes other nutrients, so review the full ration once you have chosen one."
@@ -175,12 +188,14 @@ def optimize_ration(
     feed_items = list(nutrient_data.keys())
     feed_vars = LpVariable.dicts("Feed", feed_items, lowBound=0, cat="Continuous")
     hay_kg = round_to_nearest(epdm.dry_matter / (hay.dry_matter_pct / 100), 0.5)
-    max_per_meal = (profile.ideal_weight / 100) * 0.4
+    max_per_meal = ((profile.ideal_weight / 100) * 0.4) * profile.meals
 
     deficits, base_contribution = hay_contribution(hay, epdm, mn)
 
     hay_calcium = base_contribution["calcium_g_per_kg_dm"]
     hay_phosphorus = base_contribution["phosphorus_g_per_kg_dm"]
+    hay_protein = base_contribution["digestible_protein_g_per_kg_dm"]
+    hay_energy = base_contribution["energy_mj_per_kg_dm"]
 
     for nutrient in deficits:
         lp_prob += (
@@ -209,6 +224,12 @@ def optimize_ration(
 
     lp_prob += total_calcium - 1.5 * total_phosphorus >= 0, "CalciumPhosphorusRatio"
 
+    total_protein = hay_protein + lpSum([nutrient_data[f]["digestible_protein_g_per_kg_dm"] * feed_vars[f] for f in feed_items])
+    lp_prob += total_protein <= (epdm.total_dcp_g * 1.6), "ProteinMaximum"
+
+    total_energy = hay_energy + lpSum([nutrient_data[f]["energy_mj_per_kg_dm"] * feed_vars[f] for f in feed_items])
+    lp_prob += total_energy <= (epdm.total_mj * ENERGY_MAX[profile.keeper_type]), "EnergyMaximum"
+
     feed_used = LpVariable.dicts("Used", feed_items, cat="Binary")
 
     for f in feed_items:
@@ -219,17 +240,22 @@ def optimize_ration(
                     nutrient_data[f]["max_g_per_100kg_bw_per_meal"]
                     * (nutrient_data[f]["dry_matter_pct"] / 100)
                 )
-                * (profile.ideal_weight / 100)
+                * (profile.ideal_weight / 100) * profile.meals
             )
             * feed_used[f],
             f"{f}Maximum",
         )
 
     max_amounts = {
-        f: nutrient_data[f]["max_g_per_100kg_bw_per_meal"]
-        * (profile.ideal_weight / 100)
+        f: (
+            nutrient_data[f]["max_g_per_100kg_bw_per_meal"]
+            * (nutrient_data[f]["dry_matter_pct"] / 100)
+            * (profile.ideal_weight / 100)
+            * profile.meals
+        )
         for f in feed_items
     }
+
     lp_prob += (
         lpSum([feed_used[f] for f in feed_items])
         + lpSum(
@@ -238,7 +264,7 @@ def optimize_ration(
         * 0.001
     )
 
-    lp_prob.solve()
+    lp_prob.solve(PULP_CBC_CMD(msg=0))
 
     if LpStatus[lp_prob.status] != "Optimal":
         return models.RationResult(
@@ -250,10 +276,12 @@ def optimize_ration(
     concentrates = []
     concentrate_contribution = {}
     for f in feed_items:
-        amount = round_to_nearest(
-            feed_vars[f].varValue / (nutrient_data[f]["dry_matter_pct"] / 100), 0.05
-        )
-        if amount > 0.001:
+        raw_amount = feed_vars[f].varValue / (nutrient_data[f]["dry_matter_pct"] / 100)
+        amount = round_to_nearest(raw_amount, 0.05)
+        if amount == 0 and raw_amount > 0.001:
+            amount = 0.05
+
+        if amount > 0:
             concentrate_contribution[f] = contribution_calculator(
                 nutrient_data[f], feed_vars[f].varValue
             )
@@ -266,7 +294,7 @@ def optimize_ration(
         epdm, mn, base_contribution, concentrate_contribution
     )
 
-    warnings = generate_warnings(profile, nutrient_coverage, mn)
+    warnings = generate_warnings(profile, nutrient_coverage, mn, concentrates)
 
     ration = models.RationResult(
         hay_kg=hay_kg,

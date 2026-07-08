@@ -20,6 +20,7 @@ class HorseProfile:
     is_stallion: bool
     workload_percent: int
     no_grain: bool
+    meals: int
 
 
 @dataclass

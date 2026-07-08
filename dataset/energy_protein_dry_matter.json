@@ -1,31 +1,30 @@
-{"energy_maintenance": {
+{
+  "energy_maintenance": {
     "keeper_type": {
-        "easy_keeper": 0.5,
-        "normal_keeper": 0.525,
-        "hard_keeper": 0.55,
-        "description": "Mega Joule per day and kg bodyweight. Depends on the horses ability to keep and digest the energy"
+      "easy_keeper": 0.5,
+      "normal_keeper": 0.525,
+      "hard_keeper": 0.55,
+      "description": "Mega Joule per day and kg bodyweight. Depends on the horses ability to keep and digest the energy"
     },
-    
-    "work_factors": {
-        "light": 0.25,
-        "moderate": 0.5,
-        "hard": 0.75,
-        "very_hard": 1.20,
-        "description": "Percentage of the energy maintenance added to total energy intake"
-    }
 
-    },
-"protein": {
+    "work_factors": {
+      "light": 0.25,
+      "moderate": 0.5,
+      "hard": 0.75,
+      "very_hard": 1.2,
+      "description": "Percentage of the energy maintenance added to total energy intake"
+    }
+  },
+  "protein": {
     "grams": 6,
     "description": "6 grams of digestible crude protein per MJ"
-    
-},
-"dry_matter": {
-        "keeper_type": {
-        "easy_keeper": 1.5,
-        "normal_keeper": 1.7,
-        "hard_keeper": 2,
-        "description": "Kilo Drymass/day/100kg"}
+  },
+  "dry_matter": {
+    "keeper_type": {
+      "easy_keeper": 1.0,
+      "normal_keeper": 1.5,
+      "hard_keeper": 2,
+      "description": "Kilo Drymass/day/100kg"
+    }
+  }
 }
-}
-
