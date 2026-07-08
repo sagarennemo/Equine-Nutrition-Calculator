@@ -8,7 +8,7 @@ import models
 # Easy and hard keeper values follow the levels used by Krafft/PC-Horse.
 # The normal keeper value is interpolated between them and is not yet
 # independently verified.
-ENERGY_SURPLUS = {
+ENERGY__WARNING_SURPLUS = {
     "easy_keeper": 1.10,
     "normal_keeper": 1.15,  # interpolated - verify against a source
     "hard_keeper": 1.20,
@@ -20,10 +20,14 @@ ENERGY_SURPLUS = {
 # surplus should be reduced regardless.
 PROTEIN_SURPLUS_MAX = 1.6
 
+# Practical upper limit for voluntary dry matter intake, ~2.5% of bodyweight.
+# Common equine nutrition guideline - not yet verified against a specific source.
+MAX_HAY_DM_PCT = 2.5
+
 ENERGY_MAX = {
-    "easy_keeper": 1.20,    # 10 pts above the 1.10 warning threshold
+    "easy_keeper": 1.20,  # 10 pts above the 1.10 warning threshold
     "normal_keeper": 1.25,  # 10 pts above the 1.15 warning threshold
-    "hard_keeper": 1.30,    # 10 pts above the 1.20 warning threshold
+    "hard_keeper": 1.30,  # 10 pts above the 1.20 warning threshold
 }
 
 
@@ -51,36 +55,18 @@ def contribution_calculator(source: dict, amount: float):
     }
 
 
-def hay_contribution(
-    hay: models.HayAnalysis,
-    horse_req: models.EnergyProteinReq,
-    micronutr: models.MicroNutrients,
-) -> dict:
+def optimized_nutrient_needs(
+    epdm: models.EnergyProteinReq, mn: models.MicroNutrients
+) -> dict[str, float]:
+    horse_needs = {
+        "energy_mj_per_kg_dm": epdm.total_mj,
+        "digestible_protein_g_per_kg_dm": epdm.total_dcp_g,
+    }
 
-    base_deficits = {}
-    hay_analysis = asdict(hay)
-    hay_nutrients = contribution_calculator(hay_analysis, horse_req.dry_matter)
+    for nutrient in mn.macrominerals:
+        horse_needs[nutrient.lower() + "_g_per_kg_dm"] = mn.macrominerals[nutrient]
 
-    for nutrient, balance in [
-        (
-            "energy_mj_per_kg_dm",
-            hay_nutrients["energy_mj_per_kg_dm"] - horse_req.total_mj,
-        ),
-        (
-            "digestible_protein_g_per_kg_dm",
-            hay_nutrients["digestible_protein_g_per_kg_dm"] - horse_req.total_dcp_g,
-        ),
-    ]:
-        base_deficits[nutrient] = max(0, -balance)
-
-    for nutrient in micronutr.macrominerals:
-        mineral_balance = (
-            hay_nutrients[nutrient.lower() + "_g_per_kg_dm"]
-            - micronutr.macrominerals[nutrient]
-        )
-        base_deficits[nutrient.lower() + "_g_per_kg_dm"] = max(0, -mineral_balance)
-
-    return base_deficits, hay_nutrients
+    return horse_needs
 
 
 def ration_coverage(
@@ -88,18 +74,12 @@ def ration_coverage(
     mn: models.MicroNutrients,
     hay_nutrients: dict[str, float],
     concentrate_contribution: dict[str, float],
+    horse_needs: dict[str, float],
 ) -> dict[str, models.NutrientCoverage]:
 
-    horse_needs = {
-        "energy_mj_per_kg_dm": epdm.total_mj,
-        "digestible_protein_g_per_kg_dm": epdm.total_dcp_g,
-    }
     total_coverage = dict(hay_nutrients)
 
     nutrient_needs_coverage = {}
-
-    for nutrient in mn.macrominerals:
-        horse_needs[nutrient.lower() + "_g_per_kg_dm"] = mn.macrominerals[nutrient]
 
     for nutrient in mn.microminerals:
         horse_needs[nutrient.lower() + "_mg_per_kg_dm"] = mn.microminerals[nutrient]
@@ -122,9 +102,9 @@ def generate_warnings(
     profile: models.HorseProfile,
     nutrient_coverage: dict[str, models.NutrientCoverage],
     mn: models.MicroNutrients,
-    concentrates: list[str]
+    concentrates: list[str],
 ) -> list[str]:
-    
+
     warnings = []
 
     if concentrates:
@@ -136,14 +116,14 @@ def generate_warnings(
     protein = nutrient_coverage["digestible_protein_g_per_kg_dm"]
 
     keeper_type = profile.keeper_type
-    threshold = ENERGY_SURPLUS[keeper_type]
+    threshold = ENERGY__WARNING_SURPLUS[keeper_type]
     energy = nutrient_coverage["energy_mj_per_kg_dm"]
 
     microminerals = mn.microminerals
 
     if energy.covered > (energy.required * threshold):
         warnings.append(
-            "The ration provides more energy than the horse needs, which can lead to unhealthy weight gain over time. Consider reducing concentrate, lowering the forage amount, or switching to a forage with lower energy content."
+            "The ration provides more energy than the horse needs, which can lead to unhealthy weight gain over time. Consider reducing concentrate, increasing training intensity, or switching to a forage with lower energy content."
         )
 
     if protein.from_hay >= (protein.required * PROTEIN_SURPLUS_MAX):
@@ -187,20 +167,20 @@ def optimize_ration(
     nutrient_data = df.set_index("name").to_dict(orient="index")
     feed_items = list(nutrient_data.keys())
     feed_vars = LpVariable.dicts("Feed", feed_items, lowBound=0, cat="Continuous")
-    hay_kg = round_to_nearest(epdm.dry_matter / (hay.dry_matter_pct / 100), 0.5)
+
     max_per_meal = ((profile.ideal_weight / 100) * 0.4) * profile.meals
 
-    deficits, base_contribution = hay_contribution(hay, epdm, mn)
+    optimized_horse_needs = optimized_nutrient_needs(epdm, mn)
 
-    hay_calcium = base_contribution["calcium_g_per_kg_dm"]
-    hay_phosphorus = base_contribution["phosphorus_g_per_kg_dm"]
-    hay_protein = base_contribution["digestible_protein_g_per_kg_dm"]
-    hay_energy = base_contribution["energy_mj_per_kg_dm"]
+    hay_max = (profile.ideal_weight / 100) * MAX_HAY_DM_PCT
+    hay_min = epdm.dry_matter
+    hay_var = LpVariable("Hay", lowBound=hay_min, upBound=hay_max, cat="Continuous")
 
-    for nutrient in deficits:
+    for nutrient in optimized_horse_needs:
         lp_prob += (
-            lpSum([nutrient_data[f][nutrient] * feed_vars[f] for f in feed_items])
-            >= deficits[nutrient],
+            (hay_var * getattr(hay, nutrient))
+            + lpSum([nutrient_data[f][nutrient] * feed_vars[f] for f in feed_items])
+            >= optimized_horse_needs[nutrient],
             f"{nutrient.split('_')[0].capitalize()}Minimum",
         )
 
@@ -215,20 +195,30 @@ def optimize_ration(
         "AmountMaximum",
     )
 
-    total_calcium = hay_calcium + lpSum(
+    total_calcium = (hay.calcium_g_per_kg_dm * hay_var) + lpSum(
         [nutrient_data[f]["calcium_g_per_kg_dm"] * feed_vars[f] for f in feed_items]
     )
-    total_phosphorus = hay_phosphorus + lpSum(
+    total_phosphorus = (hay.phosphorus_g_per_kg_dm * hay_var) + lpSum(
         [nutrient_data[f]["phosphorus_g_per_kg_dm"] * feed_vars[f] for f in feed_items]
     )
 
     lp_prob += total_calcium - 1.5 * total_phosphorus >= 0, "CalciumPhosphorusRatio"
 
-    total_protein = hay_protein + lpSum([nutrient_data[f]["digestible_protein_g_per_kg_dm"] * feed_vars[f] for f in feed_items])
+    total_protein = (hay.digestible_protein_g_per_kg_dm * hay_var) + lpSum(
+        [
+            nutrient_data[f]["digestible_protein_g_per_kg_dm"] * feed_vars[f]
+            for f in feed_items
+        ]
+    )
     lp_prob += total_protein <= (epdm.total_dcp_g * 1.6), "ProteinMaximum"
 
-    total_energy = hay_energy + lpSum([nutrient_data[f]["energy_mj_per_kg_dm"] * feed_vars[f] for f in feed_items])
-    lp_prob += total_energy <= (epdm.total_mj * ENERGY_MAX[profile.keeper_type]), "EnergyMaximum"
+    total_energy = (hay.energy_mj_per_kg_dm * hay_var) + lpSum(
+        [nutrient_data[f]["energy_mj_per_kg_dm"] * feed_vars[f] for f in feed_items]
+    )
+    lp_prob += (
+        total_energy <= (epdm.total_mj * ENERGY_MAX[profile.keeper_type]),
+        "EnergyMaximum",
+    )
 
     feed_used = LpVariable.dicts("Used", feed_items, cat="Binary")
 
@@ -240,7 +230,8 @@ def optimize_ration(
                     nutrient_data[f]["max_g_per_100kg_bw_per_meal"]
                     * (nutrient_data[f]["dry_matter_pct"] / 100)
                 )
-                * (profile.ideal_weight / 100) * profile.meals
+                * (profile.ideal_weight / 100)
+                * profile.meals
             )
             * feed_used[f],
             f"{f}Maximum",
@@ -255,6 +246,10 @@ def optimize_ration(
         )
         for f in feed_items
     }
+    protein_surplus = (
+        total_protein - optimized_horse_needs["digestible_protein_g_per_kg_dm"]
+    )
+    energy_surplus = total_energy - optimized_horse_needs["energy_mj_per_kg_dm"]
 
     lp_prob += (
         lpSum([feed_used[f] for f in feed_items])
@@ -262,17 +257,40 @@ def optimize_ration(
             [feed_vars[f] / max_amounts[f] for f in feed_items if max_amounts[f] > 0]
         )
         * 0.001
+        + protein_surplus * 0.01
+        + energy_surplus * 0.01
     )
 
     lp_prob.solve(PULP_CBC_CMD(msg=0))
 
+    hay_contribution = contribution_calculator(asdict(hay), hay_var.varValue)
+    raw_hay_kg = hay_var.varValue / (hay.dry_matter_pct / 100)
+    hay_kg = round_to_nearest(raw_hay_kg, 0.5)
+
+    fallback_hay_nutrients = contribution_calculator(asdict(hay), hay_min)
+    fallback_hay_kg = round_to_nearest(hay_min / (hay.dry_matter_pct / 100), 0.5)
+
     if LpStatus[lp_prob.status] != "Optimal":
+        hay_energy_min = hay.energy_mj_per_kg_dm * hay_min
+        hay_protein_min = hay.digestible_protein_g_per_kg_dm * hay_min
+
+        if hay_energy_min > epdm.total_mj * ENERGY_MAX[profile.keeper_type]:
+            diagnosis = "The minimum recommended hay amount alone exceeds the safe energy limit for this horse. This forage may be too energy-dense for this horse's profile — consider a lower-energy hay or grass hay instead."
+        elif hay_protein_min > epdm.total_dcp_g * PROTEIN_SURPLUS_MAX:
+            diagnosis = "The minimum recommended hay amount alone exceeds the safe protein limit for this horse. This forage may be too protein-rich for this horse's profile — consider a lower-protein hay."
+        else:
+            diagnosis = "This usually happens when the horse's requirements are very high relative to the available feeds."
+
+        warnings = [
+            f"A complete ration could not be calculated. {diagnosis} Please consult a veterinarian or equine nutritionist for an individually tailored ration."
+        ]
+
         return models.RationResult(
-            hay_kg=hay_kg,
-            warnings=[
-                "A complete ration could not be calculated for this horse with the available feeds. This usually happens when the horse's energy or nutrient requirements are very high. Please consult a veterinarian or equine nutritionist for an individually tailored ration."
-            ],
+            hay_kg=fallback_hay_kg,
+            hay_coverage=fallback_hay_nutrients,
+            warnings=warnings,
         )
+
     concentrates = []
     concentrate_contribution = {}
     for f in feed_items:
@@ -291,14 +309,18 @@ def optimize_ration(
                 )
             )
     nutrient_coverage = ration_coverage(
-        epdm, mn, base_contribution, concentrate_contribution
+        epdm,
+        mn,
+        hay_contribution,
+        concentrate_contribution,
+        horse_needs=optimized_horse_needs,
     )
 
     warnings = generate_warnings(profile, nutrient_coverage, mn, concentrates)
 
     ration = models.RationResult(
         hay_kg=hay_kg,
-        hay_coverage=base_contribution,
+        hay_coverage=hay_contribution,
         concentrates=concentrates,
         nutrient_coverage=nutrient_coverage,
         warnings=warnings,

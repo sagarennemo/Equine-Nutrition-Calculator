@@ -108,13 +108,14 @@ def keeper_info():
 def gender_info():
     return questionary.confirm("Is the horse a stallion?").ask()
 
+
 def ration_amount():
     meals = input("How many concentrate meals per day is the horse fed? ").strip()
 
     while not meals.isdigit() or int(meals) <= 0:
         print("The minimum amount of meals is 1")
         meals = input("How many concentrate meals per day is the horse fed? ").strip()
-    
+
     return int(meals)
 
 
@@ -168,17 +169,33 @@ def feed_sensitivity():
     return questionary.confirm("Does the horse have a grain sensitivity?").ask()
 
 
-def print_ration_table(result):
+def print_ration_table(result, epdm, mn):
     concentrates = result.concentrates
     console = Console()
 
     if result.nutrient_coverage == []:
-        console.print("\n[bold yellow]Warnings:[/bold yellow]")
-        for w in result.warnings:
-            console.print(f"  {w}")
-        return
+        requirements = {
+            "energy_mj_per_kg_dm": epdm.total_mj,
+            "digestible_protein_g_per_kg_dm": epdm.total_dcp_g,
+            **{k.lower() + "_g_per_kg_dm": v for k, v in mn.macrominerals.items()},
+            **{k.lower() + "_mg_per_kg_dm": v for k, v in mn.microminerals.items()},
+        }
+        hay_cov = result.hay_coverage if isinstance(result.hay_coverage, dict) else {}
+        coverage = {
+            key: models.NutrientCoverage(
+                required=requirements[key],
+                covered=hay_cov.get(key, 0),
+                from_hay=hay_cov.get(key, 0),
+            )
+            for key in NUTRIENT_LABELS
+            if key in requirements
+        }
+    else:
+        coverage = result.nutrient_coverage
 
-    conc_parts = [f"{c.feed.replace('_', ' ').title()}: {c.amount_kg:g} kg" for c in concentrates]
+    conc_parts = [
+        f"{c.feed.replace('_', ' ').title()}: {c.amount_kg:g} kg" for c in concentrates
+    ]
     conc_str = ("  |  " + "  |  ".join(conc_parts)) if conc_parts else ""
     table = Table(title=f"Ration Result  |  Hay: {result.hay_kg:g} kg{conc_str}")
 
@@ -193,7 +210,7 @@ def print_ration_table(result):
     def fmt(v):
         return f"{round(v, 1):g}"
 
-    for key, nc in result.nutrient_coverage.items():
+    for key, nc in coverage.items():
         label = NUTRIENT_LABELS.get(key, key)
         cov_pct = (nc.covered / nc.required * 100) if nc.required else 0
         row = [
@@ -221,7 +238,7 @@ def main():
     epdm = calc.calc_energy_protein_dm(ctx, profile)
     mn = calc.calc_micro_nutrients(ctx, profile)
     result = optimize_ration(ctx, profile, hay_analysis, epdm, mn)
-    print_ration_table(result)
+    print_ration_table(result, epdm, mn)
 
 
 if __name__ == "__main__":
