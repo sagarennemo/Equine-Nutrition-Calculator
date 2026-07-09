@@ -173,7 +173,7 @@ def print_ration_table(result, epdm, mn):
     concentrates = result.concentrates
     console = Console()
 
-    if result.nutrient_coverage == []:
+    if not result.nutrient_coverage:
         requirements = {
             "energy_mj_per_kg_dm": epdm.total_mj,
             "digestible_protein_g_per_kg_dm": epdm.total_dcp_g,

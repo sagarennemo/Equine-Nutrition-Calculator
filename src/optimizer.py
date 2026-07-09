@@ -8,7 +8,7 @@ import models
 # Easy and hard keeper values follow the levels used by Krafft/PC-Horse.
 # The normal keeper value is interpolated between them and is not yet
 # independently verified.
-ENERGY__WARNING_SURPLUS = {
+ENERGY_WARNING_SURPLUS = {
     "easy_keeper": 1.10,
     "normal_keeper": 1.15,  # interpolated - verify against a source
     "hard_keeper": 1.20,
@@ -78,6 +78,7 @@ def ration_coverage(
 ) -> dict[str, models.NutrientCoverage]:
 
     total_coverage = dict(hay_nutrients)
+    horse_needs = dict(horse_needs)
 
     nutrient_needs_coverage = {}
 
@@ -116,7 +117,7 @@ def generate_warnings(
     protein = nutrient_coverage["digestible_protein_g_per_kg_dm"]
 
     keeper_type = profile.keeper_type
-    threshold = ENERGY__WARNING_SURPLUS[keeper_type]
+    threshold = ENERGY_WARNING_SURPLUS[keeper_type]
     energy = nutrient_coverage["energy_mj_per_kg_dm"]
 
     microminerals = mn.microminerals
@@ -141,7 +142,7 @@ def generate_warnings(
         )
 
     for nutrient in microminerals:
-        mineral = nutrient_coverage[nutrient + "_mg_per_kg_dm"]
+        mineral = nutrient_coverage[nutrient.lower() + "_mg_per_kg_dm"]
         if mineral.covered < mineral.required:
             warnings.append(
                 f"The ration does not meet the requirement for {nutrient.split('_')[0].capitalize()}. Supplement with a complete mineral feed to cover this. Note that a mineral feed also contributes other nutrients, so review the full ration once you have chosen one."
@@ -210,7 +211,7 @@ def optimize_ration(
             for f in feed_items
         ]
     )
-    lp_prob += total_protein <= (epdm.total_dcp_g * 1.6), "ProteinMaximum"
+    lp_prob += total_protein <= (epdm.total_dcp_g * PROTEIN_SURPLUS_MAX), "ProteinMaximum"
 
     total_energy = (hay.energy_mj_per_kg_dm * hay_var) + lpSum(
         [nutrient_data[f]["energy_mj_per_kg_dm"] * feed_vars[f] for f in feed_items]
@@ -263,14 +264,10 @@ def optimize_ration(
 
     lp_prob.solve(PULP_CBC_CMD(msg=0))
 
-    hay_contribution = contribution_calculator(asdict(hay), hay_var.varValue)
-    raw_hay_kg = hay_var.varValue / (hay.dry_matter_pct / 100)
-    hay_kg = round_to_nearest(raw_hay_kg, 0.5)
-
-    fallback_hay_nutrients = contribution_calculator(asdict(hay), hay_min)
-    fallback_hay_kg = round_to_nearest(hay_min / (hay.dry_matter_pct / 100), 0.5)
-
     if LpStatus[lp_prob.status] != "Optimal":
+        fallback_hay_nutrients = contribution_calculator(asdict(hay), hay_min)
+        fallback_hay_kg = round_to_nearest(hay_min / (hay.dry_matter_pct / 100), 0.5)
+
         hay_energy_min = hay.energy_mj_per_kg_dm * hay_min
         hay_protein_min = hay.digestible_protein_g_per_kg_dm * hay_min
 
@@ -290,6 +287,10 @@ def optimize_ration(
             hay_coverage=fallback_hay_nutrients,
             warnings=warnings,
         )
+    
+    hay_contribution = contribution_calculator(asdict(hay), hay_var.varValue)
+    raw_hay_kg = hay_var.varValue / (hay.dry_matter_pct / 100)
+    hay_kg = round_to_nearest(raw_hay_kg, 0.5)
 
     concentrates = []
     concentrate_contribution = {}

@@ -74,7 +74,7 @@ class NutrientCoverage:
 @dataclass
 class RationResult:
     hay_kg: float
-    hay_coverage: dict[str, float] = field(default_factory=list)
+    hay_coverage: dict[str, float] = field(default_factory=dict)
     concentrates: list[FeedAmount] = field(default_factory=list)
-    nutrient_coverage: dict[str, NutrientCoverage] = field(default_factory=list)
+    nutrient_coverage: dict[str, NutrientCoverage] = field(default_factory=dict)
     warnings: list[str] = field(default_factory=list)
