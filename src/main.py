@@ -10,10 +10,24 @@ import requirement_calculations as calc
 from file_reader import load_context
 from optimizer import optimize_ration
 
+NUTRIENT_LABELS = {
+    "energy_mj_per_kg_dm": "Energy (MJ/day)",
+    "digestible_protein_g_per_kg_dm": "Digestible Protein (g/day)",
+    "calcium_g_per_kg_dm": "Calcium (g/day)",
+    "phosphorus_g_per_kg_dm": "Phosphorus (g/day)",
+    "magnesium_g_per_kg_dm": "Magnesium (g/day)",
+    "salt_g_per_kg_dm": "Salt (g/day)",
+    "copper_mg_per_kg_dm": "Copper (mg/day)",
+    "zinc_mg_per_kg_dm": "Zinc (mg/day)",
+    "manganese_mg_per_kg_dm": "Manganese (mg/day)",
+    "iron_mg_per_kg_dm": "Iron (mg/day)",
+    "selenium_mg_per_kg_dm": "Selenium (mg/day)",
+}
+
 hay_analysis = models.HayAnalysis(
     dry_matter_pct=66,
     energy_mj_per_kg_dm=9.2,
-    digestible_protein_per_kg_dm=60,
+    digestible_protein_g_per_kg_dm=60,
     calcium_g_per_kg_dm=2.1,
     phosphorus_g_per_kg_dm=1.6,
     magnesium_g_per_kg_dm=1.0,
@@ -21,7 +35,7 @@ hay_analysis = models.HayAnalysis(
     zinc_mg_per_kg_dm=22.7,
     manganese_mg_per_kg_dm=108.2,
     iron_mg_per_kg_dm=81.2,
-    sodium_g_per_kg_dm=0.2,
+    salt_g_per_kg_dm=0.5,
 )
 
 
@@ -30,6 +44,7 @@ def build_profile(ctx) -> models.HorseProfile:
     keeper_type = keeper_info()
     is_stallion = gender_info()
     no_grain = feed_sensitivity()
+    meals = ration_amount()
 
     maintenance = calc.energy_maintenance(ctx, ideal_weight, keeper_type, is_stallion)
 
@@ -42,6 +57,7 @@ def build_profile(ctx) -> models.HorseProfile:
         is_stallion=is_stallion,
         workload_percent=workload,
         no_grain=no_grain,
+        meals=meals,
     )
 
 
@@ -91,6 +107,16 @@ def keeper_info():
 
 def gender_info():
     return questionary.confirm("Is the horse a stallion?").ask()
+
+
+def ration_amount():
+    meals = input("How many concentrate meals per day is the horse fed? ").strip()
+
+    while not meals.isdigit() or int(meals) <= 0:
+        print("The minimum amount of meals is 1")
+        meals = input("How many concentrate meals per day is the horse fed? ").strip()
+
+    return int(meals)
 
 
 def additional_energy_needs(ctx, current_weight, maintenance):
@@ -143,37 +169,66 @@ def feed_sensitivity():
     return questionary.confirm("Does the horse have a grain sensitivity?").ask()
 
 
-def nutrients_table(epdm, mn):
-    table = Table(title="Horse Nutrient Requirements")
-
-    table.add_column("Nutrient", justify="center")
-    table.add_column("Target Intake", justify="center")
-    table.add_column("Unit", justify="center")
-
-    table.add_row("Dry Matter", str(epdm.dry_matter), "kg/day")
-    table.add_row("Metabolizable Energy", str(epdm.total_mj), "MJ/day")
-    table.add_row("Digestible Crude Protein", str(epdm.total_dcp_g), "grams/day")
-
-    for mineral in mn.macrominerals:
-        value = mn.macrominerals[mineral]
-        unit = mn.macro_mineral_units[mineral]
-        if value - int(value) <= 0:
-            value = int(value)
-        else:
-            value = round(value, 1)
-        table.add_row(mineral.capitalize(), str(value), unit)
-
-    for mineral in mn.microminerals:
-        value = mn.microminerals[mineral]
-        unit = mn.micro_mineral_units[mineral]
-        if value - int(value) <= 0:
-            value = int(value)
-        else:
-            value = round(value, 1)
-        table.add_row(mineral.capitalize(), str(value), unit)
-
+def print_ration_table(result, epdm, mn):
+    concentrates = result.concentrates
     console = Console()
+
+    if not result.nutrient_coverage:
+        requirements = {
+            "energy_mj_per_kg_dm": epdm.total_mj,
+            "digestible_protein_g_per_kg_dm": epdm.total_dcp_g,
+            **{k.lower() + "_g_per_kg_dm": v for k, v in mn.macrominerals.items()},
+            **{k.lower() + "_mg_per_kg_dm": v for k, v in mn.microminerals.items()},
+        }
+        hay_cov = result.hay_coverage if isinstance(result.hay_coverage, dict) else {}
+        coverage = {
+            key: models.NutrientCoverage(
+                required=requirements[key],
+                covered=hay_cov.get(key, 0),
+                from_hay=hay_cov.get(key, 0),
+            )
+            for key in NUTRIENT_LABELS
+            if key in requirements
+        }
+    else:
+        coverage = result.nutrient_coverage
+
+    conc_parts = [
+        f"{c.feed.replace('_', ' ').title()}: {c.amount_kg:g} kg" for c in concentrates
+    ]
+    conc_str = ("  |  " + "  |  ".join(conc_parts)) if conc_parts else ""
+    table = Table(title=f"Ration Result  |  Hay: {result.hay_kg:g} kg{conc_str}")
+
+    table.add_column("Nutrient", justify="left")
+    table.add_column("Required", justify="right")
+    table.add_column("Covered", justify="right")
+    table.add_column("From Hay", justify="right")
+    for c in concentrates:
+        table.add_column(c.feed.replace("_", " ").title(), justify="right")
+    table.add_column("Coverage %", justify="right")
+
+    def fmt(v):
+        return f"{round(v, 1):g}"
+
+    for key, nc in coverage.items():
+        label = NUTRIENT_LABELS.get(key, key)
+        cov_pct = (nc.covered / nc.required * 100) if nc.required else 0
+        row = [
+            label,
+            fmt(nc.required),
+            fmt(nc.covered),
+            fmt(nc.from_hay),
+            *[fmt(c.contribution.get(key, 0)) for c in concentrates],
+            fmt(cov_pct),
+        ]
+        table.add_row(*row)
+
     console.print(table)
+
+    if result.warnings:
+        console.print("\n[bold yellow]Warnings:[/bold yellow]")
+        for w in result.warnings:
+            console.print(f"  {w}")
 
 
 def main():
@@ -182,7 +237,8 @@ def main():
 
     epdm = calc.calc_energy_protein_dm(ctx, profile)
     mn = calc.calc_micro_nutrients(ctx, profile)
-    nutrients_table(epdm, mn)
+    result = optimize_ration(ctx, profile, hay_analysis, epdm, mn)
+    print_ration_table(result, epdm, mn)
 
 
 if __name__ == "__main__":
