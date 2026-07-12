@@ -1,7 +1,6 @@
 import pytest
 from requirement_calculations import *
 from models import HorseProfile
-from file_reader import load_context
 
 
 def make_test_profile(
@@ -23,11 +22,6 @@ def make_test_profile(
         no_grain=no_grain,
         meals=meals,
     )
-
-
-@pytest.fixture(scope="module")
-def ctx():
-    return load_context()
 
 
 @pytest.mark.parametrize(
