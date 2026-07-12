@@ -1,27 +1,6 @@
 import pytest
 from requirement_calculations import *
-from models import HorseProfile
-
-
-def make_test_profile(
-    current_weight=500,
-    ideal_weight=500,
-    keeper_type="normal_keeper",
-    is_stallion=False,
-    workload_percent=0,
-    no_grain=False,
-    meals=2,
-):
-
-    return HorseProfile(
-        current_weight=current_weight,
-        ideal_weight=ideal_weight,
-        keeper_type=keeper_type,
-        is_stallion=is_stallion,
-        workload_percent=workload_percent,
-        no_grain=no_grain,
-        meals=meals,
-    )
+from conftest import make_test_profile
 
 
 @pytest.mark.parametrize(

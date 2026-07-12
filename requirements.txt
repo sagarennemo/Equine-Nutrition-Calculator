@@ -1,4 +1,4 @@
 pandas
 questionary
 rich
-pulp
+pulp==3.3.2
