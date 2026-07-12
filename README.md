@@ -25,11 +25,12 @@ A Python-based equine nutrition calculator that estimates daily energy and nutri
   - Dry Mass Intake
   - Macrominerals (calcium, phosphorus, magnesium, salt)
   - Microminerals (copper, zinc, manganese, iron, selenium)
-  - Vitamins
+
 
 - **Source-Grounded Warnings**: Flags energy and protein surplus, and micromineral deficits that concentrates can't reliably solve, with thresholds based on SLU's own feed evaluation tool and industry practice where available
 
 - **Interactive CLI**: User-friendly command-line interface with questionnaires and formatted output tables showing required vs. covered nutrients per feed
+  
 
 ## Requirements
 
@@ -37,7 +38,7 @@ A Python-based equine nutrition calculator that estimates daily energy and nutri
 - pandas
 - questionary
 - rich
-- pulp
+- pulp==3.3.2
 
 ## Installation
 
@@ -114,16 +115,25 @@ Equine-Nutrition-Calculator/
 │   ├── optimizer.py                    # Linear programming ration optimiser
 │   ├── models.py                       # Data models and structures
 │   └── file_reader.py                  # Data loading utilities
-└── requirements.txt                    # Project dependencies
+├── tests/
+│   ├── test_file_reader.py             # integration test for load_context()
+│   ├── test_requirement_calculations.py # Unit tests for nutrient requirements
+│   ├── test_optimizer.py               # Unit and integration tests for the ration optimiser
+├── requirements.txt                    # Project dependencies
+└── conftest.py                         # Shared pytest fixture and test helpers
 ```
 
 ## Calculation Methodology
-
+└──
 - **Maintenance Energy**: Calculated using metabolic body weight (BW^0.75) with adjustments for keeper type
 - **Workload Energy**: Additional energy requirements based on percentage increases or custom exercise calculations
 - **Protein Requirements**: Calculated proportionally to total energy needs
 - **Minerals & Vitamins**: Scaled based on body weight and workload intensity
 - **Ration Optimisation**: A linear program (PuLP) treats hay quantity and each concentrate's quantity as variables, with binary variables indicating whether a feed is used. The objective minimises the number of feeds used, the amount fed, and energy/protein surplus, subject to hard constraints on minimum nutrient coverage, the calcium-to-phosphorus ratio, and maximum practical intake per meal.
+
+## Testing
+The project includes unit and integration tests covering requirement 
+calculations, dataset loading, and the ration optimiser.
 
 ## Workload Levels
 
