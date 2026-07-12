@@ -24,6 +24,12 @@ PROTEIN_SURPLUS_MAX = 1.6
 # Common equine nutrition guideline - not yet verified against a specific source.
 MAX_HAY_DM_PCT = 2.5
 
+# Absolute minimum hay intake (SLU: never reduce hay below this
+# even to correct energy/protein surplus). The keeper-type-based
+# recommended level in energy_protein_dry_matter.json is a target,
+# not a hard floor.
+MIN_HAY_DM_PCT = 1.0
+
 ENERGY_MAX = {
     "easy_keeper": 1.20,  # 10 pts above the 1.10 warning threshold
     "normal_keeper": 1.25,  # 10 pts above the 1.15 warning threshold
@@ -104,6 +110,8 @@ def generate_warnings(
     nutrient_coverage: dict[str, models.NutrientCoverage],
     mn: models.MicroNutrients,
     concentrates: list[str],
+    total_dm: float,
+    recomended_dm: float
 ) -> list[str]:
 
     warnings = []
@@ -121,6 +129,11 @@ def generate_warnings(
     energy = nutrient_coverage["energy_mj_per_kg_dm"]
 
     microminerals = mn.microminerals
+
+    if total_dm < recomended_dm * 0.9: 
+        warnings.append(
+            "The recommended dry matter intake for this horse's keeper type has not been fully met by hay alone, in order to avoid excess energy or protein. Consider adding a low-energy fibre source (e.g. straw) to increase chewing time and support digestive health without adding extra nutrients."
+        )
 
     if energy.covered > (energy.required * threshold):
         warnings.append(
@@ -174,7 +187,8 @@ def optimize_ration(
     optimized_horse_needs = optimized_nutrient_needs(epdm, mn)
 
     hay_max = (profile.ideal_weight / 100) * MAX_HAY_DM_PCT
-    hay_min = epdm.dry_matter
+    hay_min = (profile.ideal_weight / 100) * MIN_HAY_DM_PCT
+    recomended_hay_min = epdm.dry_matter
     hay_var = LpVariable("Hay", lowBound=hay_min, upBound=hay_max, cat="Continuous")
 
     for nutrient in optimized_horse_needs:
@@ -221,7 +235,24 @@ def optimize_ration(
         "EnergyMaximum",
     )
 
+
+    total_starch = lpSum(
+        [nutrient_data[f]["starch_g_per_kg_dm"] * feed_vars[f] for f in feed_items])
+
+    starch_per_meal = total_starch / profile.meals
+    # SLU: max 500g of starch per 100 kg bodyweight per day 
+    lp_prob += (total_starch <= 500 * (profile.ideal_weight / 100)), "TotalStarchMaximum"
+    #SLU: max 150 g of starch per 100 kg bodyweight per meal
+    lp_prob += (starch_per_meal <= 150 * (profile.ideal_weight / 100)), "StarchPerMeal"
+    
+    oil_feeds = [f for f in feed_items if nutrient_data[f]["category"] == "oil"]
+    total_oil = lpSum(feed_vars[f] for f in oil_feeds)
+    # SLU: max 75 g oil per 100 kg bodyweight per day, regardless of oil source.
+    lp_prob += (total_oil <= 0.075 * (profile.ideal_weight / 100)), "DailyOilMaximum"
+    
     feed_used = LpVariable.dicts("Used", feed_items, cat="Binary")
+
+
 
     for f in feed_items:
         lp_prob += (
@@ -252,14 +283,26 @@ def optimize_ration(
     )
     energy_surplus = total_energy - optimized_horse_needs["energy_mj_per_kg_dm"]
 
+    energy_from_concentrate = total_energy - (hay.energy_mj_per_kg_dm * hay_var)
+
+    # recomended_hay_min is the keeper-type-based target dry matter intake
+    # (from epdm.dry_matter), distinct from the absolute MIN_HAY_DM_PCT floor
+    # above. dm_below_recomended is a soft penalty for falling short of that
+    # target. It lets the optimiser go below the recommendation (down to the
+    # hard floor) when reaching it would otherwise force excess energy/protein.
+    dm_below_recomended = LpVariable("HaySurplus", lowBound=0)
+    lp_prob += (dm_below_recomended >= (recomended_hay_min - hay_var)), "HayBelowRecomended" 
+
     lp_prob += (
         lpSum([feed_used[f] for f in feed_items])
         + lpSum(
             [feed_vars[f] / max_amounts[f] for f in feed_items if max_amounts[f] > 0]
         )
         * 0.001
-        + protein_surplus * 0.01
-        + energy_surplus * 0.01
+        + protein_surplus * 0.1
+        + energy_surplus * 0.1
+        + energy_from_concentrate * 0.5
+        + dm_below_recomended * 0.3
     )
 
     lp_prob.solve(PULP_CBC_CMD(msg=0))
@@ -296,9 +339,10 @@ def optimize_ration(
     concentrate_contribution = {}
     for f in feed_items:
         raw_amount = feed_vars[f].varValue / (nutrient_data[f]["dry_matter_pct"] / 100)
-        amount = round_to_nearest(raw_amount, 0.05)
-        if amount == 0 and raw_amount > 0.001:
-            amount = 0.05
+        step = 0.005 if raw_amount < 0.1 else 0.05
+        amount = round_to_nearest(raw_amount, step)
+        if amount == 0 and raw_amount > 0.0001:
+            amount = step
 
         if amount > 0:
             concentrate_contribution[f] = contribution_calculator(
@@ -316,8 +360,9 @@ def optimize_ration(
         concentrate_contribution,
         horse_needs=optimized_horse_needs,
     )
+    total_dm = hay_kg * (hay.dry_matter_pct / 100)
 
-    warnings = generate_warnings(profile, nutrient_coverage, mn, concentrates)
+    warnings = generate_warnings(profile, nutrient_coverage, mn, concentrates, total_dm, recomended_hay_min)
 
     ration = models.RationResult(
         hay_kg=hay_kg,

@@ -208,7 +208,14 @@ def print_ration_table(result, epdm, mn):
     table.add_column("Coverage %", justify="right")
 
     def fmt(v):
-        return f"{round(v, 1):g}"
+        av = abs(v)
+        if av < 1:
+            decimals = 3
+        elif av < 10:
+            decimals = 2
+        else:
+            decimals = 1
+        return f"{round(v, decimals):g}"
 
     for key, nc in coverage.items():
         label = NUTRIENT_LABELS.get(key, key)
