@@ -141,8 +141,22 @@ def additional_energy_needs(ctx, current_weight, maintenance):
             walk_miutes = int(
                 input("Average minutes of walking/day (enter 0 if none): ")
             )
+            while walk_miutes < 0:
+                print("The average training minutes must be a positive integer or 0")
+                walk_miutes = int(
+                    input("Average minutes of walking/day (enter 0 if none): ")
+                )
+
             trot_canter = int(input("Average minutes of trot/canter/gallop per day: "))
+            while trot_canter < 0:
+                print("The average training minutes must be a positive integer or 0")
+                trot_canter = int(
+                    input("Average minutes of trot/canter/gallop per day: ")
+                )
+
             days = int(input("How many days a week? "))
+            while days < 0:
+                print("The training days must be a positive integer or 0")
 
             walk_miutes = (walk_miutes * days) / 7
             trot_canter = (trot_canter * days) / 7

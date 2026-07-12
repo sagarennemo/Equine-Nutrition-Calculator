@@ -5,9 +5,10 @@ def energy_maintenance(ctx, ideal_weight, keeper_type, is_stallion):
     data = ctx.energy_protein
     calc_ideal = ideal_weight**0.75
 
-    calc_maintenance = round(
+    calc_maintenance = (
         data["energy_maintenance"]["keeper_type"][keeper_type] * calc_ideal
     )
+
     maintenance = round(calc_maintenance)
 
     if is_stallion:
@@ -26,12 +27,11 @@ def calc_energy_protein_dm(ctx, profile):
 
     weight_factor_dm = ideal_weight / 100
 
-    calc_dry_matter = data["dry_matter"]["keeper_type"][keeper_type] * weight_factor_dm
-    dry_matter = round(calc_dry_matter)
+    dry_matter = data["dry_matter"]["keeper_type"][keeper_type] * weight_factor_dm
 
     maintenance = energy_maintenance(ctx, ideal_weight, keeper_type, is_stallion)
 
-    additional_energy = int(maintenance * (workload / 100))
+    additional_energy = round(maintenance * (workload / 100))
     total_energy_need = maintenance + additional_energy
     protein_need = total_energy_need * data["protein"]["grams"]
 
@@ -54,6 +54,8 @@ def workload_to_column(wl):
     elif wl <= 75:
         return "50_75", "working_horses", "maintenance"
     elif wl <= 130:
+        return "75_130", "working_horses", "very_hard_working"
+    elif wl > 130:
         return "75_130", "working_horses", "very_hard_working"
 
 

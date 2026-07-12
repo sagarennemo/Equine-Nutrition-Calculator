@@ -111,7 +111,7 @@ def generate_warnings(
     mn: models.MicroNutrients,
     concentrates: list[str],
     total_dm: float,
-    recomended_dm: float
+    recomended_dm: float,
 ) -> list[str]:
 
     warnings = []
@@ -130,7 +130,7 @@ def generate_warnings(
 
     microminerals = mn.microminerals
 
-    if total_dm < recomended_dm * 0.9: 
+    if total_dm < recomended_dm * 0.9:
         warnings.append(
             "The recommended dry matter intake for this horse's keeper type has not been fully met by hay alone, in order to avoid excess energy or protein. Consider adding a low-energy fibre source (e.g. straw) to increase chewing time and support digestive health without adding extra nutrients."
         )
@@ -225,7 +225,10 @@ def optimize_ration(
             for f in feed_items
         ]
     )
-    lp_prob += total_protein <= (epdm.total_dcp_g * PROTEIN_SURPLUS_MAX), "ProteinMaximum"
+    lp_prob += (
+        total_protein <= (epdm.total_dcp_g * PROTEIN_SURPLUS_MAX),
+        "ProteinMaximum",
+    )
 
     total_energy = (hay.energy_mj_per_kg_dm * hay_var) + lpSum(
         [nutrient_data[f]["energy_mj_per_kg_dm"] * feed_vars[f] for f in feed_items]
@@ -235,24 +238,24 @@ def optimize_ration(
         "EnergyMaximum",
     )
 
-
     total_starch = lpSum(
-        [nutrient_data[f]["starch_g_per_kg_dm"] * feed_vars[f] for f in feed_items])
+        [nutrient_data[f]["starch_g_per_kg_dm"] * feed_vars[f] for f in feed_items]
+    )
 
     starch_per_meal = total_starch / profile.meals
-    # SLU: max 500g of starch per 100 kg bodyweight per day 
-    lp_prob += (total_starch <= 500 * (profile.ideal_weight / 100)), "TotalStarchMaximum"
-    #SLU: max 150 g of starch per 100 kg bodyweight per meal
+    # SLU: max 500g of starch per 100 kg bodyweight per day
+    lp_prob += (
+        total_starch <= 500 * (profile.ideal_weight / 100)
+    ), "TotalStarchMaximum"
+    # SLU: max 150 g of starch per 100 kg bodyweight per meal
     lp_prob += (starch_per_meal <= 150 * (profile.ideal_weight / 100)), "StarchPerMeal"
-    
+
     oil_feeds = [f for f in feed_items if nutrient_data[f]["category"] == "oil"]
     total_oil = lpSum(feed_vars[f] for f in oil_feeds)
     # SLU: max 75 g oil per 100 kg bodyweight per day, regardless of oil source.
     lp_prob += (total_oil <= 0.075 * (profile.ideal_weight / 100)), "DailyOilMaximum"
-    
+
     feed_used = LpVariable.dicts("Used", feed_items, cat="Binary")
-
-
 
     for f in feed_items:
         lp_prob += (
@@ -291,7 +294,9 @@ def optimize_ration(
     # target. It lets the optimiser go below the recommendation (down to the
     # hard floor) when reaching it would otherwise force excess energy/protein.
     dm_below_recomended = LpVariable("HaySurplus", lowBound=0)
-    lp_prob += (dm_below_recomended >= (recomended_hay_min - hay_var)), "HayBelowRecomended" 
+    lp_prob += (
+        dm_below_recomended >= (recomended_hay_min - hay_var)
+    ), "HayBelowRecomended"
 
     lp_prob += (
         lpSum([feed_used[f] for f in feed_items])
@@ -330,7 +335,7 @@ def optimize_ration(
             hay_coverage=fallback_hay_nutrients,
             warnings=warnings,
         )
-    
+
     hay_contribution = contribution_calculator(asdict(hay), hay_var.varValue)
     raw_hay_kg = hay_var.varValue / (hay.dry_matter_pct / 100)
     hay_kg = round_to_nearest(raw_hay_kg, 0.5)
@@ -362,7 +367,9 @@ def optimize_ration(
     )
     total_dm = hay_kg * (hay.dry_matter_pct / 100)
 
-    warnings = generate_warnings(profile, nutrient_coverage, mn, concentrates, total_dm, recomended_hay_min)
+    warnings = generate_warnings(
+        profile, nutrient_coverage, mn, concentrates, total_dm, recomended_hay_min
+    )
 
     ration = models.RationResult(
         hay_kg=hay_kg,
