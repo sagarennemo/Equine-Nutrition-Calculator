@@ -2,3 +2,10 @@ pandas
 questionary
 rich
 pulp==3.3.2
+
+# OCR / image processing
+opencv-python
+numpy
+pdf2image
+pdfplumber
+pytesseract
