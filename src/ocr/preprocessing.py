@@ -51,6 +51,8 @@ def process_report_image(img):
 
     blurred = cv2.GaussianBlur(gray, (5, 5), 0)
 
+    # Fallback page detection: edge-based, for when the brightness assumption
+    # below fails (e.g. page not clearly brighter than its background).
     median = np.median(blurred)
     lower = int(max(0, 0.67 * median))
     upper = int(min(255, 1.33 * median))
@@ -60,24 +62,27 @@ def process_report_image(img):
     # (e.g. low contrast between page and background)
     kernel = np.ones((3, 3), np.uint8)
     edges = cv2.dilate(edges, kernel, iterations=1)
-    
+
+    # Primary page detection: assume the page is the brightest large region,
+    # threshold it out and close small holes (text/marks) into one solid blob.
     _, bright_mask = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
     kernel = np.ones((15, 15), np.uint8)
     bright_mask = cv2.morphologyEx(bright_mask, cv2.MORPH_CLOSE, kernel, iterations=2)
 
     img_area = img.shape[0] * img.shape[1]
 
-    # Perspective warp — only if we find a clean 4-corner document shape
-    # bright_mask assumes that the page is the brightest part of the document
+    # Find the document's 4 corners: try the brightness mask first, fall back
+    # to the edge mask (noisier, more sensitive to background clutter).
     approx = find_document_contour(bright_mask, img_area)
 
     if approx is None:
-        # Fallback when the brightness assumption fails, Canny is more sensitive to background clutter, lower output quality
         approx = find_document_contour(edges, img_area)
 
     if approx is not None:
+        # Found 4 corners: warp them onto a rectangle sized from the corners'
+        # own edge lengths, so the flattened page keeps its real aspect ratio.
         pts1 = order_points(approx)
-        
+
         top_left = pts1[0]
         top_right = pts1[1]
         bottom_right = pts1[2]
@@ -128,19 +133,21 @@ def process_report_image(img):
         scale = 1500 / gray.shape[0]
         gray = cv2.resize(gray, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
 
-    # Even out lighting
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-    enhanced = clahe.apply(gray)
+    # Flatten uneven shading/lighting: the large median blur estimates the
+    # background (text removed, but colored row-banding and lighting gradients
+    # kept), and subtracting it cancels those out so black text survives
+    # thresholding regardless of the report's background. Applied to every
+    # document — a plain page just subtracts to near-zero.
+    k = int(gray.shape[0] * 0.03) | 1  # ~3% of height, forced odd (medianBlur needs odd)
+    background = cv2.medianBlur(gray, k)
 
+    diff = cv2.subtract(background, gray)
+    normalized = cv2.normalize(diff, None, 0, 255, cv2.NORM_MINMAX)
+    normalized = 255 - normalized  # subtraction leaves text bright/bg dark; flip back to bg-white/text-black for Tesseract
+    _, binary = cv2.threshold(normalized, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
 
-    # Binarize
-    binary = cv2.adaptiveThreshold(
-        enhanced, 255,
-        cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-        cv2.THRESH_BINARY,
-        31,  # blockSize
-        15,  # C
-    )
+    # Clean up speckle left by thresholding: close pinholes in strokes, then
+    # open away small isolated specks.
     kernel = np.ones((3, 3), np.uint8)
     cleaned = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel)
     cleaned = cv2.morphologyEx(cleaned, cv2.MORPH_OPEN, kernel)
